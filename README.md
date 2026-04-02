@@ -708,7 +708,7 @@ const LEVELS=[
   {id:"Research Level",label:"Research 🔬",desc:"Postgrad / thesis"},
 ];
 const WELCOME=`Hey there! 👋 Welcome — I'm so glad you stopped by!\n\nI'm **Eco Green**, your personal AI engineering mentor, and I'm genuinely here to help you:\n\n💡 Understand any project idea deeply\n🛠️ Plan your build step by step\n📚 Find the right tools and resources\n⚡ Answer any engineering question you have\n\n*"The energy that moves with you — let's save the world by saving energy!"* 🌍\n\nSo, what are you working on? I can't wait to hear your ideas! 😊`;
-const GEMINI_URL='https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+const GEMINI_URL='https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 
 // ===== STATE =====
 let geminiKey='',selField=null,selTopic='',selLevel='Intermediate';
