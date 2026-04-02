@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -708,7 +708,7 @@ const LEVELS=[
   {id:"Research Level",label:"Research 🔬",desc:"Postgrad / thesis"},
 ];
 const WELCOME=`Hey there! 👋 Welcome — I'm so glad you stopped by!\n\nI'm **Eco Green**, your personal AI engineering mentor, and I'm genuinely here to help you:\n\n💡 Understand any project idea deeply\n🛠️ Plan your build step by step\n📚 Find the right tools and resources\n⚡ Answer any engineering question you have\n\n*"The energy that moves with you — let's save the world by saving energy!"* 🌍\n\nSo, what are you working on? I can't wait to hear your ideas! 😊`;
-const GEMINI_URL='https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent';
+const GEMINI_URL='https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
 // ===== STATE =====
 let geminiKey='',selField=null,selTopic='',selLevel='Intermediate';
@@ -867,35 +867,64 @@ async function callGemini(prompt,systemInstruction=''){
     generationConfig:{maxOutputTokens:1200,temperature:0.85}
   };
   if(systemInstruction) body.systemInstruction={parts:[{text:systemInstruction}]};
-  const res=await fetch(`${GEMINI_URL}?key=${geminiKey}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  let res;
+  try{
+    res=await fetch(`${GEMINI_URL}?key=${geminiKey}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  }catch(networkErr){
+    throw new Error('Network error — check your internet connection and try again.');
+  }
   if(!res.ok){
-    const e=await res.json();
-    const msg=e.error?.message||res.statusText;
-    if(msg.includes('API_KEY_INVALID')||res.status===401||res.status===403){
+    let errMsg=res.statusText;
+    try{const e=await res.json();errMsg=e.error?.message||errMsg;}catch(_){}
+    if(res.status===400&&errMsg.toLowerCase().includes('api key')){
       geminiKey='';localStorage.removeItem('eco_gemini_key');updateKeyStatus();openApiModal();
       throw new Error('Invalid API key.');
     }
-    throw new Error(msg);
+    if(res.status===401||res.status===403){
+      geminiKey='';localStorage.removeItem('eco_gemini_key');updateKeyStatus();openApiModal();
+      throw new Error('API key rejected. Please check your key and try again.');
+    }
+    if(res.status===429) throw new Error('Rate limit reached — please wait a moment and try again.');
+    throw new Error(errMsg);
   }
   const data=await res.json();
+  // Handle blocked responses
+  if(data.candidates?.[0]?.finishReason==='SAFETY') return 'I wasn\'t able to generate a response for that. Please try rephrasing! 😊';
   return data.candidates?.[0]?.content?.parts?.[0]?.text||'';
 }
 async function callGeminiChat(messages,systemInstruction=''){
   if(!geminiKey){openApiModal();throw new Error('No API key.');}
-  const contents=messages.map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:m.content}]}));
+  // Gemini requires conversation to start with 'user' role — filter out leading assistant messages
+  const filtered=messages.filter(m=>m.role==='user'||m.role==='assistant');
+  // Ensure first message is from user
+  const startIdx=filtered.findIndex(m=>m.role==='user');
+  const trimmed=startIdx>=0?filtered.slice(startIdx):filtered;
+  const contents=trimmed.map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:m.content}]}));
+  if(!contents.length) throw new Error('No messages to send.');
   const body={contents,generationConfig:{maxOutputTokens:1200,temperature:0.85}};
   if(systemInstruction) body.systemInstruction={parts:[{text:systemInstruction}]};
-  const res=await fetch(`${GEMINI_URL}?key=${geminiKey}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  let res;
+  try{
+    res=await fetch(`${GEMINI_URL}?key=${geminiKey}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  }catch(networkErr){
+    throw new Error('Network error — check your internet connection and try again.');
+  }
   if(!res.ok){
-    const e=await res.json();
-    const msg=e.error?.message||res.statusText;
-    if(msg.includes('API_KEY_INVALID')||res.status===401||res.status===403){
+    let errMsg=res.statusText;
+    try{const e=await res.json();errMsg=e.error?.message||errMsg;}catch(_){}
+    if(res.status===400&&errMsg.toLowerCase().includes('api key')){
       geminiKey='';localStorage.removeItem('eco_gemini_key');updateKeyStatus();openApiModal();
       throw new Error('Invalid API key.');
     }
-    throw new Error(msg);
+    if(res.status===401||res.status===403){
+      geminiKey='';localStorage.removeItem('eco_gemini_key');updateKeyStatus();openApiModal();
+      throw new Error('API key rejected.');
+    }
+    if(res.status===429) throw new Error('Rate limit reached — please wait a moment and try again.');
+    throw new Error(errMsg);
   }
   const data=await res.json();
+  if(data.candidates?.[0]?.finishReason==='SAFETY') return 'I wasn\'t able to respond to that. Could you rephrase? 😊';
   return data.candidates?.[0]?.content?.parts?.[0]?.text||'';
 }
 
